@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Karteikarten Lernen</title>
+    <style>
+        body {
+            background: #111;
+            color: #fff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 500px;
+            margin: 60px auto;
+            background: #181818;
+            border-radius: 18px;
+            box-shadow: 0 4px 32px #0008;
+            padding: 32px 28px 24px 28px;
+        }
+        h1 {
+            text-align: center;
+            font-weight: 700;
+            letter-spacing: 2px;
+            margin-bottom: 32px;
+        }
+        .login-form, .main-app {
+            display: none;
+        }
+        .visible {
+            display: block;
+        }
+        input, textarea, button {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0 18px 0;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+        input, textarea {
+            background: #222;
+            color: #fff;
+        }
+        button {
+            background: #fff;
+            color: #111;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+        }
+        button:hover {
+            background: #111;
+            color: #fff;
+            border: 1px solid #fff;
+        }
+        .card {
+            background: #222;
+            border-radius: 12px;
+            padding: 24px 18px;
+            margin-bottom: 18px;
+            box-shadow: 0 2px 8px #0005;
+            text-align: center;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .card.flipped {
+            background: #fff;
+            color: #111;
+        }
+        .card-controls {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 18px;
+        }
+        .logout-btn {
+            background: none;
+            color: #fff;
+            border: 1px solid #fff;
+            width: auto;
+            padding: 8px 18px;
+            margin-top: 0;
+        }
+        .logout-btn:hover {
+            background: #fff;
+            color: #111;
+        }
+        .error {
+            color: #ff4444;
+            text-align: center;
+            margin-bottom: 12px;
+        }
+        @media (max-width: 600px) {
+            .container {
+                max-width: 100vw;
+                padding: 8vw 2vw 10vw 2vw;
+                border-radius: 0;
+                box-shadow: none;
+            }
+            h1 {
+                font-size: 1.3rem;
+                margin-bottom: 18px;
+            }
+            input, textarea, button {
+                font-size: 1.1rem;
+                padding: 14px;
+            }
+            .card {
+                font-size: 1.1rem;
+                padding: 18px 8px;
+            }
+            .card-controls button, #learnModeBtn, #testModeBtn {
+                font-size: 1.1rem;
+                padding: 12px 0;
+            }
+            .logout-btn {
+                font-size: 1rem;
+                padding: 8px 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Karteikarten Lernen</h1>
+        <form class="login-form visible" id="loginForm">
+            <div class="error" id="loginError"></div>
+            <input type="text" id="username" placeholder="Benutzername" autocomplete="username" required>
+            <input type="password" id="password" placeholder="Passwort" autocomplete="current-password" required>
+            <button type="submit">Login</button>
+        </form>
+        <div class="main-app" id="mainApp">
+            <button class="logout-btn" id="logoutBtn">Logout</button>
+            <div style="display:flex;gap:10px;justify-content:center;margin-bottom:18px;">
+                <button id="learnModeBtn">Lernen</button>
+                <button id="testModeBtn">Test</button>
+            </div>
+            <div id="learnSection">
+                <div class="card-controls">
+                    <button id="prevCard">&#8592; Zurück</button>
+                    <button id="flipCard">Umdrehen</button>
+                    <button id="nextCard">Weiter &#8594;</button>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                    <span id="learnProgress"></span>
+                    <button id="editCardBtn" style="width:auto;padding:6px 12px;font-size:0.95em;">Bearbeiten</button>
+                    <button id="deleteCardBtn" style="width:auto;padding:6px 12px;font-size:0.95em;background:#ff4444;color:#fff;">Löschen</button>
+                </div>
+                <input type="text" id="searchInput" placeholder="Karteikarten durchsuchen..." style="margin-bottom:10px;">
+                <div class="card" id="cardDisplay">Keine Karteikarten vorhanden.</div>
+            </div>
+            <div id="testSection" style="display:none;">
+                <div class="card" id="testCardDisplay">Keine Karteikarten vorhanden.</div>
+                <form id="testAnswerForm" style="margin-bottom:10px;">
+                    <input type="text" id="testAnswerInput" placeholder="Antwort eingeben" autocomplete="off">
+                    <button type="submit">Antwort prüfen</button>
+                </form>
+                <div id="testFeedback" style="min-height:24px;margin-bottom:10px;"></div>
+                <div style="display:flex;justify-content:space-between;">
+                    <span id="testProgress"></span>
+                    <button id="testRestartBtn" style="display:none;">Test neu starten</button>
+                </div>
+            </div>
+            <form id="addCardForm">
+                <input type="text" id="question" placeholder="Frage" required>
+                <textarea id="answer" placeholder="Antwort" required></textarea>
+                <button type="submit">Karteikarte hinzufügen</button>
+            </form>
+        </div>
+    </div>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+    <script>
+        // --- Firebase Cloud Sync ---
+        // Trage hier deine Firebase-Konfiguration ein:
+        const firebaseConfig = {
+            apiKey: "DEIN_API_KEY",
+            authDomain: "DEIN_PROJECT_ID.firebaseapp.com",
+            databaseURL: "https://DEIN_PROJECT_ID.firebaseio.com",
+            projectId: "DEIN_PROJECT_ID",
+            storageBucket: "DEIN_PROJECT_ID.appspot.com",
+            messagingSenderId: "DEINE_SENDER_ID",
+            appId: "DEINE_APP_ID"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        function syncCardsToCloud(cards) {
+            db.ref('users/admin/cards').set(cards);
+        }
+        function loadCardsFromCloud(callback) {
+            db.ref('users/admin/cards').once('value').then(snap => {
+                callback(snap.val() || []);
+            });
+        }
+        const loginForm = document.getElementById('loginForm');
+        const loginError = document.getElementById('loginError');
+        const mainApp = document.getElementById('mainApp');
+        const logoutBtn = document.getElementById('logoutBtn');
+        
+        function showLogin() {
+            loginForm.classList.add('visible');
+            mainApp.classList.remove('visible');
+        }
+        function showApp() {
+            loginForm.classList.remove('visible');
+            mainApp.classList.add('visible');
+        }
+        function checkLogin() {
+            return localStorage.getItem('loggedIn') === 'true';
+        }
+        function setLogin(state) {
+            localStorage.setItem('loggedIn', state ? 'true' : 'false');
+        }
+        function afterLogin() {
+            // Lade Karteikarten aus Cloud
+            loadCardsFromCloud(function(cloudCards) {
+                if (Array.isArray(cloudCards) && cloudCards.length > 0) {
+                    cards = cloudCards;
+                    saveCards();
+                } else {
+                    // Wenn keine Cloudkarten, lokale nehmen
+                    syncCardsToCloud(cards);
+                }
+                showCard();
+            });
+            showApp();
+        }
+        if (checkLogin()) {
+            afterLogin();
+        } else {
+            showLogin();
+        }
+        loginForm.onsubmit = function(e) {
+            e.preventDefault();
+            const user = document.getElementById('username').value.trim();
+            const pass = document.getElementById('password').value;
+            if (user === 'admin' && pass === '1234') {
+                setLogin(true);
+                loginError.textContent = '';
+                loginForm.reset();
+                afterLogin();
+            } else {
+                loginError.textContent = 'Falscher Benutzername oder Passwort!';
+            }
+        };
+        logoutBtn.onclick = function() {
+            setLogin(false);
+            showLogin();
+        };
+
+        // Karteikarten Logik
+    let cards = JSON.parse(localStorage.getItem('cards') || '[]');
+    let current = 0;
+    let flipped = false;
+    let searchResults = null;
+    const cardDisplay = document.getElementById('cardDisplay');
+    const learnProgress = document.getElementById('learnProgress');
+    const editCardBtn = document.getElementById('editCardBtn');
+    const deleteCardBtn = document.getElementById('deleteCardBtn');
+    const searchInput = document.getElementById('searchInput');
+        const prevCard = document.getElementById('prevCard');
+        const nextCard = document.getElementById('nextCard');
+        const flipCard = document.getElementById('flipCard');
+        const addCardForm = document.getElementById('addCardForm');
+        const questionInput = document.getElementById('question');
+        const answerInput = document.getElementById('answer');
+        // Testmodus Elemente
+        const learnModeBtn = document.getElementById('learnModeBtn');
+        const testModeBtn = document.getElementById('testModeBtn');
+        const learnSection = document.getElementById('learnSection');
+        const testSection = document.getElementById('testSection');
+        const testCardDisplay = document.getElementById('testCardDisplay');
+        const testAnswerForm = document.getElementById('testAnswerForm');
+        const testAnswerInput = document.getElementById('testAnswerInput');
+        const testFeedback = document.getElementById('testFeedback');
+        const testProgress = document.getElementById('testProgress');
+        const testRestartBtn = document.getElementById('testRestartBtn');
+
+        function saveCards() {
+            localStorage.setItem('cards', JSON.stringify(cards));
+            if (checkLogin()) syncCardsToCloud(cards);
+        }
+        // --- Lernmodus ---
+        function getActiveList() {
+            return searchResults !== null ? searchResults : cards;
+        }
+        function showCard() {
+            const list = getActiveList();
+            if (list.length === 0) {
+                cardDisplay.textContent = 'Keine Karteikarten vorhanden.';
+                cardDisplay.classList.remove('flipped');
+                learnProgress.textContent = '';
+                editCardBtn.style.display = 'none';
+                deleteCardBtn.style.display = 'none';
+                return;
+            }
+            if (current >= list.length) current = 0;
+            const card = list[current];
+            cardDisplay.textContent = flipped ? card.answer : card.question;
+            cardDisplay.className = 'card' + (flipped ? ' flipped' : '');
+            learnProgress.textContent = `Karte ${current+1} von ${list.length}`;
+            editCardBtn.style.display = '';
+            deleteCardBtn.style.display = '';
+        }
+        prevCard.onclick = function() {
+            const list = getActiveList();
+            if (list.length === 0) return;
+            current = (current - 1 + list.length) % list.length;
+            flipped = false;
+            showCard();
+        };
+        nextCard.onclick = function() {
+            const list = getActiveList();
+            if (list.length === 0) return;
+            current = (current + 1) % list.length;
+            flipped = false;
+            showCard();
+        };
+        // Karte bearbeiten
+        editCardBtn.onclick = function() {
+            const list = getActiveList();
+            if (list.length === 0) return;
+            const card = list[current];
+            const newQ = prompt('Neue Frage:', card.question);
+            if (newQ === null) return;
+            const newA = prompt('Neue Antwort:', card.answer);
+            if (newA === null) return;
+            // Finde Index in cards
+            let idx = cards.findIndex(c => c.question === card.question && c.answer === card.answer);
+            if (idx !== -1) {
+                cards[idx] = { question: newQ, answer: newA };
+                saveCards();
+                showCard();
+            }
+        };
+        // Karte löschen
+        deleteCardBtn.onclick = function() {
+            const list = getActiveList();
+            if (list.length === 0) return;
+            if (!confirm('Karteikarte wirklich löschen?')) return;
+            const card = list[current];
+            // Finde Index in cards
+            let idx = cards.findIndex(c => c.question === card.question && c.answer === card.answer);
+            if (idx !== -1) {
+                cards.splice(idx, 1);
+                saveCards();
+                if (searchResults) {
+                    searchResults.splice(current, 1);
+                    if (searchResults.length === 0) searchResults = null;
+                }
+                if (current >= getActiveList().length) current = 0;
+                flipped = false;
+                showCard();
+            }
+        };
+        // Suchfunktion
+        searchInput.oninput = function() {
+            const val = searchInput.value.trim().toLowerCase();
+            if (!val) {
+                searchResults = null;
+                current = 0;
+                showCard();
+                return;
+            }
+            searchResults = cards.filter(c => c.question.toLowerCase().includes(val) || c.answer.toLowerCase().includes(val));
+            current = 0;
+            showCard();
+        };
+        flipCard.onclick = function() {
+            if (cards.length === 0) return;
+            flipped = !flipped;
+            showCard();
+        };
+        cardDisplay.onclick = function() {
+            if (cards.length === 0) return;
+            flipped = !flipped;
+            showCard();
+        };
+        addCardForm.onsubmit = function(e) {
+            e.preventDefault();
+            const q = questionInput.value.trim();
+            const a = answerInput.value.trim();
+            if (!q || !a) return;
+            cards.push({ question: q, answer: a });
+            saveCards();
+            current = cards.length - 1;
+            flipped = false;
+            showCard();
+            addCardForm.reset();
+        };
+        // --- Testmodus ---
+        let testOrder = [];
+        let testIndex = 0;
+        let testScore = 0;
+        let testActive = false;
+        function shuffle(arr) {
+            return arr.map(v => [Math.random(), v]).sort().map(a => a[1]);
+        }
+        function startTest() {
+            if (cards.length === 0) {
+                testCardDisplay.textContent = 'Keine Karteikarten vorhanden.';
+                testAnswerForm.style.display = 'none';
+                testProgress.textContent = '';
+                testFeedback.textContent = '';
+                testRestartBtn.style.display = 'none';
+                return;
+            }
+            testOrder = shuffle([...Array(cards.length).keys()]);
+            testIndex = 0;
+            testScore = 0;
+            testActive = true;
+            testAnswerForm.style.display = '';
+            testRestartBtn.style.display = 'none';
+            showTestCard();
+        }
+        function showTestCard() {
+            if (testIndex >= testOrder.length) {
+                testCardDisplay.textContent = `Test beendet!\nRichtige Antworten: ${testScore} von ${testOrder.length}`;
+                testAnswerForm.style.display = 'none';
+                testFeedback.textContent = '';
+                testProgress.textContent = '';
+                testRestartBtn.style.display = '';
+                testActive = false;
+                return;
+            }
+            const idx = testOrder[testIndex];
+            testCardDisplay.textContent = cards[idx].question;
+            testAnswerInput.value = '';
+            testFeedback.textContent = '';
+            testProgress.textContent = `Frage ${testIndex+1} von ${testOrder.length}`;
+        }
+        testAnswerForm.onsubmit = function(e) {
+            e.preventDefault();
+            if (!testActive) return;
+            const idx = testOrder[testIndex];
+            const userAns = testAnswerInput.value.trim().toLowerCase();
+            const correctAns = cards[idx].answer.trim().toLowerCase();
+            if (userAns === correctAns) {
+                testFeedback.textContent = 'Richtig!';
+                testScore++;
+            } else {
+                testFeedback.textContent = `Falsch! Richtige Antwort: ${cards[idx].answer}`;
+            }
+            testIndex++;
+            setTimeout(showTestCard, 1200);
+        };
+        testRestartBtn.onclick = startTest;
+        // --- Modus-Umschaltung ---
+        function showLearn() {
+            learnSection.style.display = '';
+            testSection.style.display = 'none';
+            learnModeBtn.disabled = true;
+            testModeBtn.disabled = false;
+        }
+        function showTest() {
+            learnSection.style.display = 'none';
+            testSection.style.display = '';
+            learnModeBtn.disabled = false;
+            testModeBtn.disabled = true;
+            startTest();
+        }
+        learnModeBtn.onclick = function(e) { e.preventDefault(); showLearn(); };
+        testModeBtn.onclick = function(e) { e.preventDefault(); showTest(); };
+        // Initial anzeigen
+        showCard();
+        showLearn();
+    </script>
+</body>
+</html>
